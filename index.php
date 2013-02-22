@@ -55,7 +55,21 @@ $firstnamesort = ($sort == 'firstname');
 $excel = ($format == 'excelcsv');
 $csv = ($format == 'csv' || $excel);
 
-// Load CSV library
+/*
+ * SWA modification
+ */
+$completion = new completion_info($course);
+    if ($completion->is_enabled() && ajaxenabled()) {
+        $PAGE->requires->string_for_js('completion:statuspending', 'report_completion');
+    	$PAGE->requires->string_for_js('completion:forcedpending', 'report_completion');
+    	$PAGE->requires->js('/report/completion/forcecompletion.js',true);
+        $PAGE->requires->js_init_call('M.force_completion.init');
+    }
+/*
+ * SWA end modification
+ */
+
+    // Load CSV library
 if ($csv) {
     require_once("{$CFG->libdir}/csvlib.class.php");
 }
@@ -64,6 +78,16 @@ if ($csv) {
 $start   = optional_param('start', 0, PARAM_INT);
 $sifirst = optional_param('sifirst', 'all', PARAM_ALPHA);
 $silast  = optional_param('silast', 'all', PARAM_ALPHA);
+
+$urlparams = array('course'=>$courseid);
+if ($start)
+	$urlparams['start'] = $start;
+if ($sifirst)
+	$urlparams['sifirst'] = $sifirst;
+if ($silast)
+	$urlparams['silast'] = $silast;
+
+$PAGE->set_url('/report/completion/', $urlparams); // Defined here to avoid notices on errors etc
 
 // Whether to show extra user identity information
 $extrafields = get_extra_user_fields($context);
@@ -485,9 +509,14 @@ if (!$csv) {
             case COMPLETION_CRITERIA_TYPE_ROLE:
                 // Load role
                 $role = $DB->get_record('role', array('id' => $criterion->role));
-
+                $icon = $OUTPUT->pix_url('i/roles');
                 // Display icon
                 $iconalt = $role->name;
+                break;
+
+            case COMPLETION_CRITERIA_TYPE_GRADE:
+                $iconalt = get_string('grades');
+            	$icon = $OUTPUT->pix_url('i/grades');
                 break;
         }
 
@@ -576,20 +605,22 @@ foreach ($progress as $user) {
 
         // Handle activity completion differently
         if ($criterion->criteriatype == COMPLETION_CRITERIA_TYPE_ACTIVITY) {
-
+			
+        	$thisprogress = null; // SWA modification (reset for each activity)
+        	$forcedIcon = null;
+        	
             // Load activity
             $activity = $modinfo->cms[$criterion->moduleinstance];
 
+            if (array_key_exists($activity->id, $user->progress)) {
+                $thisprogress = $user->progress[$activity->id];
+                $state = $thisprogress->completionstate;
+            } else {
+                $state = COMPLETION_COMPLETE;
+            }
             // Get progress information and state
             if ($is_complete) {
                 $date = userdate($criteria_completion->timecompleted, get_string('strftimedatetimeshort', 'langconfig'));
-
-                if (array_key_exists($activity->id, $user->progress)) {
-                    $thisprogress = $user->progress[$activity->id];
-                    $state = $thisprogress->completionstate;
-                } else {
-                    $state = COMPLETION_COMPLETE;
-                }
             } else {
                 $date = '';
                 $state = COMPLETION_INCOMPLETE;
@@ -602,27 +633,84 @@ foreach ($progress as $user) {
                 case COMPLETION_COMPLETE_PASS : $completiontype = 'pass'; break;
                 case COMPLETION_COMPLETE_FAIL : $completiontype = 'fail'; break;
             }
-
+            
             $auto = $activity->completion == COMPLETION_TRACKING_AUTOMATIC;
             $completionicon = 'completion-'.($auto ? 'auto' : 'manual').'-'.$completiontype;
 
-            $describe = get_string('completion-'.$completiontype, 'completion');
+            
+            $describe = $forceIconDescr = get_string('completion-'.$completiontype, 'completion');
+            
             $a = new StdClass();
             $a->state     = $describe;
             $a->date      = $date;
             $a->user      = fullname($user);
             $a->activity  = strip_tags($activity->name);
-            $fulldescribe = get_string('progress-title', 'completion', $a);
+            $fulldescribe = $forceIconFull = get_string('progress-title', 'completion', $a);
 
+            /*
+             * SWA Modification START
+             */
+            $icon_URL = $OUTPUT->pix_url('i/'.$completionicon);
+            $is_forced = false;
+            $forcedIcon = $OUTPUT->pix_url('completion-auto-forced','report_completion');
+            $forcedicondisplay = 'none';
+            if (!is_null($thisprogress) && $thisprogress->forced == COMPLETION_FORCED) {
+            	$currentIcon = $icon_URL;
+            	$is_forced = true;
+            	$completionicon = 'completion-auto-forced';
+            	if ($state != COMPLETION_COMPLETE && $state != COMPLETION_COMPLETE_PASS) {
+            		$describe .= get_string('completion:forcedpending', 'report_completion');
+            		$fulldescribe .= get_string('completion:forcedpending', 'report_completion');
+            	} else {
+	            	$describe .= get_string('completion:forced', 'report_completion');
+	            	$fulldescribe .= get_string('completion:forced', 'report_completion');
+            	}
+            	$forceIconFull = $forceIconDescr = get_string('completion:forceicontitle', 'report_completion'); 
+            	$forcedicondisplay = 'block';
+            }
+            
             if ($csv) {
                 $row[] = $describe;
                 $row[] = $date;
             } else {
                 print '<td class="completion-progresscell">';
 
-                print '<img src="'.$OUTPUT->pix_url('i/'.$completionicon).
-                      '" alt="'.$describe.'" class="icon" title="'.$fulldescribe.'" />';
-
+                if ($auto && $user->id != $USER->id) {
+                	$newstate = $is_forced ? COMPLETION_UNKNOWN : COMPLETION_COMPLETE;
+                	echo html_writer::start_tag('form', array(
+                			'class' => 'toggleforcecompletion',
+                			'method' => 'post',
+                			'action' => $CFG->wwwroot . '/report/completion/toggleforcecompletion.php'));
+                	echo html_writer::start_tag('div');
+                	echo html_writer::empty_tag('input', array(
+                			'type' => 'hidden', 'name' => 'id', 'value' => $activity->id));
+                	echo html_writer::empty_tag('input', array(
+                			'type' => 'hidden', 'name' => 'criteriaid', 'value' => $criterion->id));
+                	echo html_writer::empty_tag('input', array(
+                			'type' => 'hidden', 'name' => 'userid', 'value' => $user->id));
+                	echo html_writer::empty_tag('input', array(
+                			'type' => 'hidden', 'name' => 'modulename',
+                			'value' => $activity->name));
+                	echo html_writer::empty_tag('input', array(
+                			'type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()));
+                	echo html_writer::empty_tag('input', array(
+                			'type' => 'hidden', 'name' => 'forcecompletionstate',
+                			'value' => $newstate));
+                	echo html_writer::empty_tag('input', array(
+                			'type' => 'hidden', 'name' => 'backto',
+                			'value' => $PAGE->url));
+					if (isset($auto))
+                		echo html_writer::empty_tag('input', array('name' => 'forceicon',
+                				'type' => 'image', 'class' => 'icon', 'style' => 'vertical-align:text-bottom;padding-right:6px;display:'.$forcedicondisplay, 'src' => $forcedIcon, 'alt' => $forceIconDescr, 'title' => $forceIconFull));
+                	echo html_writer::empty_tag('input', array(
+                			'type' => 'image', 'class' => 'icon', 'style' => 'vertical-align:text-bottom;padding-right:6px', 'src' => $icon_URL, 'alt' => $describe, 'title' => $fulldescribe));
+                	echo html_writer::end_tag('div');
+                	echo html_writer::end_tag('form');
+                } else {                
+                	print '<img src="'.$icon_URL.
+                      	'" alt="'.$describe.'" class="icon" title="'.$fulldescribe.'" />';
+                }
+                
                 print '</td>';
             }
 

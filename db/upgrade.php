@@ -15,17 +15,32 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details
+ * Post installation and migration code.
  *
  * @package    report
  * @subpackage completion
- * @copyright  2009 Catalyst IT Ltd
- * @author     Aaron Barnes <aaronb@catalyst.net.nz>
+ * @copyright  2011 Petr Skoda {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die;
 
-$plugin->version   = 2013012100;          // The current plugin version (Date: YYYYMMDDXX)
-$plugin->requires  = 2012112900;          // Requires this Moodle version
-$plugin->component = 'report_completion'; // Full name of the plugin (used for diagnostics)
+function xmldb_report_completion_upgrade ($oldversion) {
+    global $DB;
+    $dbman = $DB->get_manager();
+    
+    if ($oldversion < 2013012100) {    
+    	// Define field forced to be added to course_modules_completion
+    	$table = new xmldb_table('course_modules_completion');
+    	$field = new xmldb_field('forced', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'completionstate');
+    
+    	// Conditionally launch add field forced
+    	if (!$dbman->field_exists($table, $field)) {
+    		$dbman->add_field($table, $field);
+    	}
+    
+    	// completion savepoint reached
+    	upgrade_plugin_savepoint(true, 2013012100, 'report', 'completion');
+    }
+}
+

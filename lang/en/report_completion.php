@@ -32,3 +32,12 @@ $string['page-report-completion-x'] = 'Any completion report';
 $string['page-report-completion-index'] = 'Course completion report';
 $string['page-report-completion-user'] = 'User course completion report';
 $string['pluginname'] = 'Course completion';
+
+/*
+ * SWA modification
+ */
+$string['completion:statuspending'] = ' (status pending)';
+$string['completion:forcedpending'] = ' (forced, pending)';
+$string['completion:forced'] = ' (forced)';
+$string['completion:notautomatictrack'] = 'Cannot force manual tracked activity.';
+$string['completion:forceicontitle'] = 'Completion forced. Click the box to reverse.';
