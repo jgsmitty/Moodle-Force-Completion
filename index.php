@@ -1,4 +1,9 @@
 <?php
+/*
+ * Modified for addition of Forced Completion support.
+ * Jamie Smith - jamie.g.smith@gmail.com
+ * Search for SWA for modification lines and documentation.
+ */
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify

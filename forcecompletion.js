@@ -14,7 +14,7 @@ M.force_completion.init = function(Y) {
             	//alert('State set to complete/forced.');
                 var altstr = modulename + ' - ' + M.str.report_completion['completion:forcedpending'];
                 var titlestr = modulename + ' - ' + M.str.report_completion['completion:forcedpending'];
-                args.state.set('value', 0);
+                args.state.set('value', -1);
                 args.image.set('alt', altstr);
                 args.image.set('title', titlestr);
                 args.forceicon.setStyle('display','block');

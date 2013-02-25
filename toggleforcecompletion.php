@@ -32,7 +32,7 @@ $criteriaid = optional_param('criteriaid', 0, PARAM_INT);
 $userid = optional_param('userid', 0, PARAM_INT);
 
 if (!$userid || !$cmid) {
-    print_error('invalidarguments');
+	error_or_ajax('invalidarguments', 'error', $fromajax);
 }
 
 $targetstate = required_param('forcecompletionstate', PARAM_INT);
@@ -45,7 +45,7 @@ switch($targetstate) {
     case COMPLETION_UNKNOWN:
         break;
     default:
-        print_error('unsupportedstate');
+		error_or_ajax('unsupportedstate', 'error', $fromajax);
 }
 
 // Get course-modules entry
@@ -56,7 +56,7 @@ $course = $DB->get_record('course', array('id'=>$cm->course), '*', MUST_EXIST);
 require_login($course, false, $cm);
 
 if (isguestuser() or !confirm_sesskey()) {
-    print_error('error');
+	error_or_ajax('error', 'error', $fromajax);
 }
 
 // Now change state
@@ -67,7 +67,7 @@ if (!$completion->is_enabled()) {
 
 // Check completion state is manual
 if($cm->completion != COMPLETION_TRACKING_AUTOMATIC) {
-    error_or_ajax('completion:notautomatictrack', $fromajax);
+    error_or_ajax('completion:notautomatictrack', 'report_completion', $fromajax);
 }
 
 
@@ -116,12 +116,12 @@ if ($fromajax) {
 
 // utility functions
 
-function error_or_ajax($message, $fromajax) {
+function error_or_ajax($message, $module, $fromajax) {
     if ($fromajax) {
-        print get_string($message, 'report_completion');
+        print get_string($message, $module);
         exit;
     } else {
-        print_error($message, 'report_completion');
+        print_error($message, $module);
     }
 }
 
